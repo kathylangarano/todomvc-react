@@ -45,30 +45,20 @@ export class Item extends Component {
     return (
       <li className={classNames({ completed, editing: this.state.editing })} data-testid="todo-item">
         <div className="view">
-          <input
-            className="toggle"
-            type="checkbox"
-            checked={completed}
-            onChange={() => this.handleCompleted()}
-          />
-          <label onDoubleClick={() => this.handleEdit()} data-testid="todo-name">{name}</label>
-          <button
-            className="destroy"
-            onClick={() => this.handleRemove()}
-            data-testid="todo-remove"
-          />
+          <input className="toggle" type="checkbox" checked={completed} onChange={() => this.handleCompleted()} />
+          <label onDoubleClick={() => this.handleEdit()} data-testid="todo-name">
+            {name}
+          </label>
+          <button className="destroy" onClick={() => this.handleRemove()} data-testid="todo-remove" />
         </div>
-        {
-          this.state.editing
-          && (
-            <input
-              className="edit"
-              value={this.state.name}
-              onInput={e => this.handleChange(e)}
-              onBlur={() => this.handleBlur()}
-            />
-          )
-        }
+        {this.state.editing && (
+          <input
+            className="edit"
+            value={this.state.name}
+            onInput={e => this.handleChange(e)}
+            onBlur={() => this.handleBlur()}
+          />
+        )}
       </li>
     );
   }
