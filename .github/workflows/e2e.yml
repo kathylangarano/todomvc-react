@@ -2,9 +2,9 @@ name: E2E Tests
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   e2e:
@@ -35,14 +35,14 @@ jobs:
       - name: Cypress run
         uses: cypress-io/github-action@v6
         with:
-          start: npm start                 # launches dev server on port 9300
+          start: npm start # launches dev server on port 9300
           wait-on: 'http://localhost:9300' # ping until server is ready
-          wait-on-timeout: 120             # seconds to wait before failing
-          command: npm run cypress          # your headless script
+          wait-on-timeout: 120 # seconds to wait before failing
+          command: npm run cypress # your headless script
 
       # 5️⃣  (Optional) upload videos & screenshots when tests fail
       - name: Upload Cypress artifacts
-        if: failure()                      # only save if tests failed
+        if: failure() # only save if tests failed
         uses: actions/upload-artifact@v4
         with:
           name: cypress-artifacts
