@@ -38,7 +38,7 @@ jobs:
           start: npm start                 # launches dev server on port 9300
           wait-on: 'http://localhost:9300' # ping until server is ready
           wait-on-timeout: 120             # seconds to wait before failing
-          command: npm run cy:run          # your headless script
+          command: npm run cypress          # your headless script
 
       # 5️⃣  (Optional) upload videos & screenshots when tests fail
       - name: Upload Cypress artifacts

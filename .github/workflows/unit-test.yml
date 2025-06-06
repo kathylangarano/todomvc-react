@@ -3,13 +3,13 @@ name: Unit Tests
 # ➊ Run on every push or PR to main
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   test:
-    runs-on: ubuntu-latest           # clean Linux VM
+    runs-on: ubuntu-latest # clean Linux VM
 
     steps:
       # ➋ Check out repository code
@@ -21,11 +21,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 18
-          cache: npm                 # caches ~/.npm automatically
+          cache: npm # caches ~/.npm automatically
 
       # ➍ Install dependencies from package-lock.json
       - name: Install dependencies
-        run: npm ci                  # reproducible install
+        run: npm ci # reproducible install
 
       # ➎ Run Jest test suite once (non-watch, CI mode)
       - name: Run unit tests

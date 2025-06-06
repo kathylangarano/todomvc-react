@@ -5,7 +5,7 @@
 
 The well-known TodoMVC built with React and Redux in a structured and testable way.
 
-![TodoMVC React](./images/screenshot.png "TodoMVC React")
+![TodoMVC React](./images/screenshot.png 'TodoMVC React')
 
 [Edit and try it out online](https://codesandbox.io/s/github/blacksonic/todomvc-react)
 
@@ -36,7 +36,7 @@ After installing the dependencies the following NPM scripts become available:
 
 ![Architecture](./images/architecture.png)
 
-Application is compatible with [React devtools](https://chrome.google.com/webstore/detail/react-developer-tools/fmkadmapgofadopljbjfkapdkoienihi?hl=en) 
+Application is compatible with [React devtools](https://chrome.google.com/webstore/detail/react-developer-tools/fmkadmapgofadopljbjfkapdkoienihi?hl=en)
 and [Redux devtools](https://chrome.google.com/webstore/detail/redux-devtools/lmhkpmbekcpmknklioeibfkpmmfibljd?hl=en)
 
 ## Series
