@@ -11,27 +11,34 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1️⃣  Fetch your repo
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2️⃣  Install Node and use npm-cache for speed
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
           node-version: 18
           cache: npm
 
-      # 3️⃣  Clean, reproducible install
       - name: Install dependencies
         run: npm ci
 
-      # 4️⃣  Run Prettier in **check-only** mode
-      #     • Fails if any file is not correctly formatted
+      # 🔧 Auto-fix formatting issues
+      - name: Run Prettier (auto-fix)
+        run: npx prettier --write .
+
+      # 💾 Commit formatting fixes back to repo
+      - name: Commit formatting fixes
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "chore: auto-format with Prettier" || echo "No changes to commit"
+          git push || echo "No changes to push"
+
+      # ✅ Final formatting check (optional safety net)
       - name: Check formatting (Prettier)
         run: npx prettier --check .
 
-      # 5️⃣  Run ESLint
-      #     • Adjust script/paths if your project uses a custom lint command
       - name: Lint (ESLint)
         run: npm run lint
