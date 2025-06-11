@@ -3,10 +3,10 @@ name: Deploy to S3
 on:
   workflow_run:
     workflows:
-      - build
-      - unit-test
-      - e2e
-      - format-lint
+      - Build application
+      - Unit Tests
+      - E2E Tests
+      - Lint & Format
     types:
       - completed
 
