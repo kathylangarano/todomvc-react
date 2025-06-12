@@ -3,15 +3,16 @@ name: Deploy to S3
 on:
   workflow_run:
     workflows:
-      - Build application
-      - Unit Tests
-      - E2E Tests
-      - Lint & Format
+      - "Build application"
+      - "Unit Tests"
+      - "E2E Tests"
+      - "Lint & Format"
     types:
       - completed
 
 jobs:
   deploy:
+    # Solo ejecuta el deploy si todos los workflows previos han pasado exitosamente
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
 
