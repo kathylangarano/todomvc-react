@@ -1,42 +1,80 @@
-name: Build and Deploy to S3
-
 on:
-  push:
-    branches: [main]
+  workflow_run:
+    workflows:
+      - "Build application"
+      - "Unit Tests"
+      - "E2E Tests"
+      - "Lint & Format"
+    types:
+      - completed
 
 jobs:
-  deploy:
+  check-all-workflows:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
-
+    outputs:
+      all-success: ${{ steps.check.outputs.all-success }}
     steps:
-      # 1. Checkout your code
-      - name: Checkout repository
+      - name: Check all workflows status
+        id: check
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const requiredWorkflows = [
+              'Build application',
+              'Unit Tests', 
+              'E2E Tests',
+              'Lint & Format'
+            ];
+            
+            const { data: workflowRuns } = await github.rest.actions.listWorkflowRunsForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              head_sha: context.payload.workflow_run.head_sha,
+              status: 'completed'
+            });
+            
+            const completedWorkflows = workflowRuns.workflow_runs
+              .filter(run => run.conclusion === 'success')
+              .map(run => run.name);
+            
+            const allCompleted = requiredWorkflows.every(workflow => 
+              completedWorkflows.includes(workflow)
+            );
+            
+            console.log('Required workflows:', requiredWorkflows);
+            console.log('Completed workflows:', completedWorkflows);
+            console.log('All completed:', allCompleted);
+            
+            core.setOutput('all-success', allCompleted);
+
+  deploy:
+    needs: check-all-workflows
+    if: needs.check-all-workflows.outputs.all-success == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      # 2. Set up Node.js (v18)
-      - name: Set up Node.js
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 18
           cache: npm
 
-      # 3. Install dependencies
       - name: Install dependencies
         run: npm ci
 
-      # 4. Build the React app
       - name: Build application
         run: npm run build
 
-      # 5. Configure AWS credentials (from repo secrets)
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+      - name: Deploy to S3
+        uses: jakejarvis/s3-sync-action@v0.5.1
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-2  # or your region
-
-      # 6. Deploy to S3 and replace existing files (without ACL)
-      - name: Sync build folder to S3
-        run: |
-          aws s3 sync build/ s3://todomvc-app.cloud/ --delete
+          args: --delete
+        env:
+          AWS_S3_BUCKET: todomvc-app.cloud
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: us-east-2
+          SOURCE_DIR: build
