@@ -36,7 +36,7 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-2  # or your region
 
-      # 6. Deploy to S3 and replace existing files
+      # 6. Deploy to S3 and replace existing files (without ACL)
       - name: Sync build folder to S3
         run: |
-          aws s3 sync build/ s3://todomvc-app.cloud/ --delete --acl public-read
+          aws s3 sync build/ s3://todomvc-app.cloud/ --delete
