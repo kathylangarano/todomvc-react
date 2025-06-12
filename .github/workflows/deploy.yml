@@ -3,7 +3,7 @@ name: Deploy to S3
 on:
   workflow_run:
     workflows:
-      - "Build application"
+      - "Build application"   # Asegúrate de que estos nombres coincidan exactamente con los workflows previos
       - "Unit Tests"
       - "E2E Tests"
       - "Lint & Format"
@@ -12,7 +12,7 @@ on:
 
 jobs:
   deploy:
-    # Solo ejecuta el deploy si todos los workflows previos han pasado exitosamente
+    # Este trabajo solo se ejecutará si todos los workflows previos se completaron exitosamente
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
 
