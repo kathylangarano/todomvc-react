@@ -28,7 +28,7 @@ export class Header extends Component {
         <h1>todos</h1>
         <input
           className="new-todo"
-          placeholder="What needs to be done?"
+          placeholder="Hello"
           value={this.state.name}
           onInput={e => this.handleChange(e)}
           onKeyUp={e => this.handleSubmit(e)}
