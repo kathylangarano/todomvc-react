@@ -1,0 +1,140 @@
+name: CI / CD
+
+on:
+  push:
+    branches: [main]          # producción
+  pull_request:
+    branches: [main]          # PRs hacia main
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  NODE_VERSION: 18            # 🔄 cambia aquí una sola vez si actualizas
+
+# ➊ BUILD (genera artefacto)
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: ⤵️  Checkout
+        uses: actions/checkout@v4
+
+      - name: 🟢  Set up Node ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: 📦  Install deps
+        run: npm ci
+
+      - name: 🛠️  Build app
+        run: npm run build
+
+      - name: 📤  Upload bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: build
+          path: build
+          retention-days: 7
+
+# ➋ LINT (paralelo, depende de build para asegurar misma SHA)
+  lint:
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+
+      - name: 🔍 ESLint
+        run: npm run lint
+
+      - name: 🔧 Prettier check
+        run: npx prettier --check .
+
+# ➋ UNIT TESTS (paralelo)
+  unit:
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - name: 🧪 Jest
+        run: npm run test:unit -- --coverage
+
+# ➋ E2E TESTS (paralelo)
+  e2e:
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+
+      - name: ⚙️  Cypress run
+        uses: cypress-io/github-action@v6
+        with:
+          start: npm start
+          wait-on: 'http://localhost:9300'
+          wait-on-timeout: 120
+          command: npm run cypress
+
+      - name: 📤  Upload Cypress artifacts (on fail)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cypress-artifacts
+          path: |
+            cypress/videos
+            cypress/screenshots
+          retention-days: 7
+
+# ➌ DEPLOY (solo si TODO lo anterior fue OK)
+  deploy:
+    runs-on: ubuntu-latest
+    needs: [lint, unit, e2e]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: ⤵️  Checkout repo
+        uses: actions/checkout@v4
+
+      - name: ⬇️  Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: build
+          path: build
+
+      - name: 🤖 Set up Node (scripts auxiliares)
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: 🚀 Deploy to S3
+        uses: jakejarvis/s3-sync-action@v0.5.1
+        with:
+          args: --delete
+        env:
+          AWS_S3_BUCKET: todomvc-app.cloud
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: us-east-2
+          SOURCE_DIR: build
