@@ -1,97 +1,90 @@
-name: CI / CD
+name: CI-CD
 
 on:
   push:
-    branches: [main]
+    branches: [main]          # producción
   pull_request:
-    branches: [main]
+    branches: [main]          # PRs hacia main
 
-# El bot necesitará permiso para hacer push
-permissions:
-  contents: write
+defaults:
+  run:
+    shell: bash
 
 env:
-  NODE_VERSION: 18           # cambia aquí si subes de versión
+  NODE_VERSION: 18            
 
-# ➊ BUILD (genera el artefacto que usarán los demás jobs)
+# ➊ BUILD (genera artefacto)
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      - name: ⤵️  Checkout
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: 🟢  Set up Node ${{ env.NODE_VERSION }}
+      - name: Set up Node ${{ env.NODE_VERSION }}
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
 
-      - name: 📦  Install deps
+      - name: Install deps
         run: npm ci
 
-      - name: 🛠️  Build app
+      - name: Build app
         run: npm run build
 
-      - name: 📤  Upload build artifact
+      - name: Upload bundle
         uses: actions/upload-artifact@v4
         with:
           name: build
           path: build
           retention-days: 7
 
-# ➋ LINT + AUTO‑FIX (paralelo)
-  lint:
-    runs-on: ubuntu-latest
-    needs: build
-    # evita volver a ejecutarse sobre el commit del bot
-    if: github.actor != 'github-actions[bot]'
+lint:
+  runs-on: ubuntu-latest
+  needs: build
 
-    steps:
-      - name: ⤵️  Checkout
-        uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+  steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        fetch-depth: 0          # ayuda si hay rebase
 
-      - name: 🟢  Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
+    - name: Set up Node
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: npm
 
-      - name: 📦  Install deps
-        run: npm ci
+    - name: Install deps
+      run: npm ci
 
-      # ╭──────────────────────────────────────────────╮
-      # │ 1) AUTO‑FORMATEO CON PRETTIER ‑‑write        │
-      # ╰──────────────────────────────────────────────╯
-      - name: 🔧 Prettier auto‑fix
-        run: npx prettier --write .
+    # Auto‑fix SOLO en push (no en PR) y solo si no es el bot
+    - name: Prettier auto-fix
+      if: github.event_name == 'push' && github.actor != 'github-actions[bot]'
+      run: npx prettier --write .
 
-      # 2) Si hubo cambios, los commitea y pushea (con [skip ci])
-      - name: ⬆️  Commit & push (si cambió algo)
-        id: commit
-        run: |
-          if [[ $(git status --porcelain) != "" ]]; then
-            git config --global user.name  "github-actions[bot]"
-            git config --global user.email "github-actions[bot]@users.noreply.github.com"
-            git add -A
-            git commit -m "chore(style): auto‑format with Prettier [skip ci]"
-            git push
-            echo "pushed=true" >> $GITHUB_OUTPUT
-          else
-            echo "pushed=false" >> $GITHUB_OUTPUT
-          fi
+    - name: Commit & push (si cambió algo)
+      if: github.event_name == 'push' && github.actor != 'github-actions[bot]'
+      run: |
+        if [[ $(git status --porcelain) != "" ]]; then
+          git config --global user.name  "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "chore(style): auto-format with Prettier [skip ci]"
+          git pull --rebase origin "${GITHUB_REF_NAME}"
+          git push
+        fi
 
-      # 3) Verificación final (solo si NO hubo push)
-      - name: 🔍 Prettier check
-        if: steps.commit.outputs.pushed == 'false'
-        run: npx prettier --check .
+    # En PR (o si no hubo cambios) solo comprobamos
+    - name: Prettier check
+      run: npx prettier --check .
 
-      - name: 🔍 ESLint
-        if: steps.commit.outputs.pushed == 'false'
-        run: npm run lint
+    - name: ESLint
+      run: npm run lint
+
 
 # ➋ UNIT TESTS (paralelo)
   unit:
@@ -105,7 +98,7 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - run: npm ci
-      - name: 🧪 Jest
+      - name: Jest
         run: npm run test:unit -- --coverage
 
 # ➋ E2E TESTS (paralelo)
@@ -120,14 +113,16 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - run: npm ci
-      - name: ⚙️  Cypress run
+
+      - name: Cypress run
         uses: cypress-io/github-action@v6
         with:
           start: npm start
           wait-on: 'http://localhost:9300'
           wait-on-timeout: 120
           command: npm run cypress
-      - name: 📤  Upload Cypress artifacts
+
+      - name: Upload Cypress artifacts (on fail)
         if: failure()
         uses: actions/upload-artifact@v4
         with:
@@ -137,28 +132,29 @@ jobs:
             cypress/screenshots
           retention-days: 7
 
-# ➌ DEPLOY (solo si TODO lo anterior pasó y es push directo a main)
+# ➌ DEPLOY (solo si TODO lo anterior fue OK)
   deploy:
     runs-on: ubuntu-latest
     needs: [lint, unit, e2e]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repo
+        uses: actions/checkout@v4
 
-      - name: ⬇️  Download build artifact
+      - name: Download build artifact
         uses: actions/download-artifact@v4
         with:
           name: build
           path: build
 
-      - name: 🟢  Set up Node
+      - name: Set up Node (scripts auxiliares)
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
 
-      - name: 🚀 Deploy to S3
+      - name: Deploy to S3
         uses: jakejarvis/s3-sync-action@v0.5.1
         with:
           args: --delete
