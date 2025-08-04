@@ -1,10 +1,14 @@
-name: CI / CD
+name: CI / CD
 
 on:
   push:
     branches: [main]          # producción
   pull_request:
     branches: [main]          # PRs hacia main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 defaults:
   run:
@@ -13,12 +17,16 @@ defaults:
 env:
   NODE_VERSION: 18         
 
-# ➊ BUILD (genera artefacto)
 jobs:
+
+  # ⬱ BUILD (genera artefacto)
   build:
     runs-on: ubuntu-latest
-
     steps:
+      - name: Mark start
+        id: t0
+        run: echo "start=$(date +%s)" >> $GITHUB_OUTPUT
+
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -41,12 +49,26 @@ jobs:
           path: build
           retention-days: 7
 
-# ➋ LINT (paralelo, depende de build para asegurar misma SHA)
+      - name: Save job duration
+        if: always()
+        run: |
+          end=$(date +%s)
+          echo '{"job":"${{ github.job }}","start":${{ steps.t0.outputs.start }},"end":'$end'}' > metrics.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: metrics-${{ github.job }}
+          path: metrics.json
+
+  # ⬱ LINT
   lint:
     runs-on: ubuntu-latest
     needs: build
-
     steps:
+      - name: Mark start
+        id: t0
+        run: echo "start=$(date +%s)" >> $GITHUB_OUTPUT
+
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
@@ -57,7 +79,6 @@ jobs:
       - name: Run Prettier (auto-fix)
         run: npx prettier --write .
 
-      # Commit formatting fixes back to repo
       - name: Commit formatting fixes
         run: |
           git config --global user.name "github-actions[bot]"
@@ -66,33 +87,62 @@ jobs:
           git commit -m "chore: auto-format with Prettier" || echo "No changes to commit"
           git push || echo "No changes to push"
 
-      # Final formatting check (optional safety net)
       - name: Check formatting (Prettier)
         run: npx prettier --check .
 
       - name: Lint (ESLint)
         run: npm run lint
-# ➋ UNIT TESTS (paralelo)
+
+      - name: Save job duration
+        if: always()
+        run: |
+          end=$(date +%s)
+          echo '{"job":"${{ github.job }}","start":${{ steps.t0.outputs.start }},"end":'$end'}' > metrics.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: metrics-${{ github.job }}
+          path: metrics.json
+
+  # ⬱ UNIT TESTS
   unit:
     runs-on: ubuntu-latest
     needs: build
-
     steps:
+      - name: Mark start
+        id: t0
+        run: echo "start=$(date +%s)" >> $GITHUB_OUTPUT
+
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - run: npm ci
+
       - name: Jest
         run: npm run test:unit -- --coverage
 
-# ➋ E2E TESTS (paralelo)
+      - name: Save job duration
+        if: always()
+        run: |
+          end=$(date +%s)
+          echo '{"job":"${{ github.job }}","start":${{ steps.t0.outputs.start }},"end":'$end'}' > metrics.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: metrics-${{ github.job }}
+          path: metrics.json
+
+  # ⬱ E2E TESTS
   e2e:
     runs-on: ubuntu-latest
     needs: build
-
     steps:
+      - name: Mark start
+        id: t0
+        run: echo "start=$(date +%s)" >> $GITHUB_OUTPUT
+
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
@@ -118,12 +168,22 @@ jobs:
             cypress/screenshots
           retention-days: 7
 
-# ➌ DEPLOY (solo si TODO lo anterior fue OK)
+      - name: Save job duration
+        if: always()
+        run: |
+          end=$(date +%s)
+          echo '{"job":"${{ github.job }}","start":${{ steps.t0.outputs.start }},"end":'$end'}' > metrics.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: metrics-${{ github.job }}
+          path: metrics.json
+
+  # ⬱ DEPLOY
   deploy:
     runs-on: ubuntu-latest
     needs: [lint, unit, e2e]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -150,3 +210,25 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_REGION: us-east-2
           SOURCE_DIR: build
+
+  # ⬱ METRICS
+  metrics:
+    needs: [build, lint, unit, e2e, deploy]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: metrics-*
+          path: metrics
+          merge-multiple: true
+
+      - name: Render summary
+        run: |
+          echo "| Job | Duración (s) |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---:|" >> $GITHUB_STEP_SUMMARY
+          for f in metrics/*.json; do
+            d=$(jq -r '(.end - .start|tostring)' "$f")
+            j=$(jq -r '.job' "$f")
+            echo "| $j | $d |" >> $GITHUB_STEP_SUMMARY
+          done
