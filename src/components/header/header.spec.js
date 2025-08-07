@@ -13,7 +13,7 @@ describe.only('Header', () => {
     );
 
     const input = getByTestId('todo-create');
-    input.value = 'Demo';
+    input.value = 'Hola';
     fireEvent.input(input);
     fireEvent.keyUp(input, { key: 'Enter' });
 
