@@ -12,7 +12,7 @@ export class List extends Component {
 
         <ul className="todo-list">
           {this.props.visibleTodos.map(todo => (
-            <Item key={todo.id} todo={todo} onUpdate={this.props.onUpdate} onRemove={this.props.onRemove} />
+            <Item key={todo.id}/>
           ))}
         </ul>
       </section>
