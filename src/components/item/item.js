@@ -13,7 +13,7 @@ export class Item extends Component {
   }
 
   handleEdit() {
-    this.setState({ editing: true };
+    this.setState({ editing: true });
   }
 
   handleCompleted() {
